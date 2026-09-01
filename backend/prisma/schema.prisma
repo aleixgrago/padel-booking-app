@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReservationStatus {
+  SCHEDULED   // programada, esperando a que llegue su ventana de ejecución
+  PROCESSING  // el cron la está ejecutando ahora mismo
+  CONFIRMED   // reservada con éxito en la API del club
+  FAILED      // la API del club rechazó la reserva o falló la llamada
+  CANCELLED   // el usuario la canceló antes de que se ejecutara
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  // Credenciales del usuario en la web del club (PrinciSport), necesarias
+  // para que el robot de reserva inicie sesión en su nombre. La contraseña
+  // se guarda cifrada (AES-256-GCM), nunca en texto plano.
+  clubUsername          String
+  clubPasswordEncrypted String
+
+  reservations  Reservation[]
+  twoFactorCodes TwoFactorCode[]
+}
+
+model TwoFactorCode {
+  id        String   @id @default(cuid())
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Reservation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Nº de pista: 1, 2, 3, 4 o 5
+  courtId Int
+
+  // Fecha del partido que se quiere reservar (ej. 2026-09-02)
+  targetDate DateTime
+
+  // Franja horaria dentro de esa pista, ej. "16:30"
+  timeSlot String
+
+  // Momento exacto en el que el cron debe intentar la reserva
+  // (targetDate - BOOKING_WINDOW_DAYS, a las 20:00h)
+  executeAt DateTime
+
+  status        ReservationStatus @default(SCHEDULED)
+  attempts      Int               @default(0)
+  lastError     String?
+  clubBookingId String? // id devuelto por la API del club si tiene éxito
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  executedAt DateTime?
+
+  @@index([userId])
+  @@index([executeAt, status])
+}

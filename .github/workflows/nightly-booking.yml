@@ -1,0 +1,23 @@
+name: Ejecutar reservas programadas (20:00h España)
+
+# GitHub Actions programa siempre en UTC, y España cambia de huso horario
+# (CEST/UTC+2 en verano, CET/UTC+1 en invierno). Para no tener que tocar
+# este fichero dos veces al año, lanzamos el "despertador" a las dos horas
+# posibles y dejamos que sea el backend quien decida si hay algo que hacer:
+# solo ejecuta reservas cuya ventana (executeAt) ya ha llegado, así que la
+# llamada "de más" no provoca ninguna reserva duplicada ni efecto raro.
+on:
+  schedule:
+    - cron: "0 18 * * *" # 20:00h en horario de verano (CEST, UTC+2)
+    - cron: "0 19 * * *" # 20:00h en horario de invierno (CET, UTC+1)
+  workflow_dispatch: {} # también se puede lanzar a mano desde GitHub para probar
+
+jobs:
+  trigger-scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint interno del backend
+        run: |
+          curl --fail --silent --show-error \
+            -X POST "${{ secrets.BACKEND_URL }}/internal/run-scheduler" \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}"
