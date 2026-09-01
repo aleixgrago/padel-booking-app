@@ -13,7 +13,7 @@ export const env = {
   frontendUrl: required("FRONTEND_URL", "http://localhost:5173"),
 
   jwtSecret: required("JWT_SECRET"),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? 604800,
+  jwtExpiresIn: Number(process.env.JWT_EXPIRES_IN ?? 60 * 60 * 24 * 7), // segons
   tempTokenSecret: required("TEMP_TOKEN_SECRET"),
 
   smtp: {
