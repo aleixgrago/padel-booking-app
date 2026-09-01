@@ -50,8 +50,13 @@ model Reservation {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Nº de pista: 1, 2, 3, 4 o 5
+  // Nº de pista: 1, 2, 3, 4 o 5 (la que el usuario ha pedido)
   courtId Int
+
+  // Pista que finalmente se ha conseguido reservar. Puede ser distinta de
+  // courtId si esa pista no estaba disponible y el sistema ha probado
+  // automáticamente con otras del mismo grupo horario (1-4 entre ellas).
+  bookedCourtId Int?
 
   // Fecha del partido que se quiere reservar (ej. 2026-09-02)
   targetDate DateTime

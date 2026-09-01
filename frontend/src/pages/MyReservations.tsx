@@ -4,6 +4,7 @@ import { api } from "../api/client";
 interface Reservation {
   id: string;
   courtId: number;
+  bookedCourtId?: number | null;
   targetDate: string;
   timeSlot: string;
   status: "SCHEDULED" | "PROCESSING" | "CONFIRMED" | "FAILED" | "CANCELLED";
@@ -79,7 +80,14 @@ export default function MyReservations() {
           <tbody>
             {reservations.map((r) => (
               <tr key={r.id}>
-                <td>Pista {r.courtId}</td>
+                <td>
+                  Pista {r.courtId}
+                  {r.bookedCourtId && r.bookedCourtId !== r.courtId && (
+                    <div style={{ fontSize: 12, color: "var(--clay)", marginTop: 2 }}>
+                      → reservada Pista {r.bookedCourtId}
+                    </div>
+                  )}
+                </td>
                 <td>{new Date(r.targetDate).toLocaleDateString("es-ES")}</td>
                 <td>{r.timeSlot}</td>
                 <td>

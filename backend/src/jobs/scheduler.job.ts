@@ -42,6 +42,7 @@ export async function runDueReservations() {
       data: {
         status: result.success ? "CONFIRMED" : "FAILED",
         clubBookingId: result.clubBookingId,
+        bookedCourtId: result.bookedCourtId,
         lastError: result.error,
         executedAt: new Date(),
       },
@@ -50,9 +51,11 @@ export async function runDueReservations() {
     try {
       await sendReservationResultEmail(reservation.user.email, result.success, {
         courtId: reservation.courtId,
+        bookedCourtId: result.bookedCourtId,
         targetDate: reservation.targetDate,
         timeSlot: reservation.timeSlot,
         error: result.error,
+        attemptsLog: result.attemptsLog,
       });
     } catch (mailErr) {
       console.error("[scheduler] Error enviando email de resultado:", mailErr);

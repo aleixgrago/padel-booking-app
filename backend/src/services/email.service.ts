@@ -31,19 +31,38 @@ export async function sendTwoFactorEmail(to: string, code: string) {
 export async function sendReservationResultEmail(
   to: string,
   ok: boolean,
-  details: { courtId: number; targetDate: Date; timeSlot: string; error?: string }
+  details: {
+    courtId: number;
+    bookedCourtId?: number;
+    targetDate: Date;
+    timeSlot: string;
+    error?: string;
+    attemptsLog?: { courtId: number; success: boolean; error?: string }[];
+  }
 ) {
   const fecha = details.targetDate.toLocaleDateString("es-ES");
+  const pistaCambiada = ok && details.bookedCourtId && details.bookedCourtId !== details.courtId;
+
   const subject = ok
-    ? `✅ Reserva confirmada: Pista ${details.courtId} - ${fecha}`
+    ? pistaCambiada
+      ? `✅ Reserva confirmada (Pista ${details.bookedCourtId} en vez de la ${details.courtId}) - ${fecha}`
+      : `✅ Reserva confirmada: Pista ${details.courtId} - ${fecha}`
     : `⚠️ No se pudo reservar: Pista ${details.courtId} - ${fecha}`;
+
+  const intentos = details.attemptsLog
+    ?.map((a) => `Pista ${a.courtId}: ${a.success ? "OK" : `fallo (${a.error ?? "desconocido"})`}`)
+    .join("\n");
+
+  const text = ok
+    ? pistaCambiada
+      ? `La Pista ${details.courtId} no estaba disponible el ${fecha} a las ${details.timeSlot}, así que se ha reservado automáticamente la Pista ${details.bookedCourtId} en su lugar.`
+      : `Tu reserva en la Pista ${details.courtId} el ${fecha} a las ${details.timeSlot} se ha confirmado.`
+    : `No se ha podido reservar ninguna pista disponible el ${fecha} a las ${details.timeSlot}.\n\n${intentos ?? ""}`;
 
   await transporter.sendMail({
     from: env.smtp.from,
     to,
     subject,
-    text: ok
-      ? `Tu reserva en la Pista ${details.courtId} el ${fecha} a las ${details.timeSlot} se ha confirmado.`
-      : `No se pudo completar la reserva en la Pista ${details.courtId} el ${fecha} a las ${details.timeSlot}. Motivo: ${details.error ?? "desconocido"}`,
+    text,
   });
 }
