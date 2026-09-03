@@ -1,33 +1,38 @@
 import { env } from "../config/env";
 
 /**
- * Envío de emails vía Resend (API HTTP, https://resend.com).
+ * Envío de emails vía Brevo (API HTTP, https://brevo.com).
  *
  * Se usa una API HTTP en vez de SMTP a propósito: los planes gratuitos de
  * hosting (Render incluido) suelen bloquear las conexiones SMTP salientes
  * (puertos 25/465/587), lo que provocaba un "Connection timeout" que además
  * tumbaba todo el proceso al no estar controlado. Con una API HTTP normal
  * (puerto 443) no hay ese problema.
+ *
+ * A diferencia de otros proveedores, Brevo solo exige verificar un email
+ * remitente concreto (un enlace de confirmación), no un dominio entero con
+ * registros DNS, lo cual encaja mejor si no tienes un dominio propio.
  */
 async function sendEmail(to: string, subject: string, text: string, html?: string) {
-  const res = await fetch("https://api.resend.com/emails", {
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.resend.apiKey}`,
+      "api-key": env.brevo.apiKey,
       "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify({
-      from: env.resend.from,
-      to,
+      sender: { name: env.brevo.fromName, email: env.brevo.fromEmail },
+      to: [{ email: to }],
       subject,
-      text,
-      ...(html ? { html } : {}),
+      textContent: text,
+      ...(html ? { htmlContent: html } : {}),
     }),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Resend ha rechazado el envío (${res.status}): ${body}`);
+    throw new Error(`Brevo ha rechazado el envío (${res.status}): ${body}`);
   }
 }
 

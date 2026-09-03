@@ -17,9 +17,10 @@ export const env = {
   jwtExpiresIn: Number(process.env.JWT_EXPIRES_IN ?? 60 * 60 * 24 * 7), // segons, por defecto 7 días
   tempTokenSecret: required("TEMP_TOKEN_SECRET"),
 
-  resend: {
-    apiKey: required("RESEND_API_KEY"),
-    from: process.env.MAIL_FROM ?? "Padel Booking <onboarding@resend.dev>",
+  brevo: {
+    apiKey: required("BREVO_API_KEY"),
+    fromEmail: required("MAIL_FROM_EMAIL"),
+    fromName: process.env.MAIL_FROM_NAME ?? "Padel Booking",
   },
 
   club: {
