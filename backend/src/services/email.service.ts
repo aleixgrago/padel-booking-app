@@ -1,31 +1,50 @@
-import nodemailer from "nodemailer";
 import { env } from "../config/env";
 
-const transporter = nodemailer.createTransport({
-  host: env.smtp.host,
-  port: env.smtp.port,
-  secure: env.smtp.secure,
-  auth: {
-    user: env.smtp.user,
-    pass: env.smtp.pass,
-  },
-});
+/**
+ * Envío de emails vía Resend (API HTTP, https://resend.com).
+ *
+ * Se usa una API HTTP en vez de SMTP a propósito: los planes gratuitos de
+ * hosting (Render incluido) suelen bloquear las conexiones SMTP salientes
+ * (puertos 25/465/587), lo que provocaba un "Connection timeout" que además
+ * tumbaba todo el proceso al no estar controlado. Con una API HTTP normal
+ * (puerto 443) no hay ese problema.
+ */
+async function sendEmail(to: string, subject: string, text: string, html?: string) {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.resend.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: env.resend.from,
+      to,
+      subject,
+      text,
+      ...(html ? { html } : {}),
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Resend ha rechazado el envío (${res.status}): ${body}`);
+  }
+}
 
 export async function sendTwoFactorEmail(to: string, code: string) {
-  await transporter.sendMail({
-    from: env.smtp.from,
+  await sendEmail(
     to,
-    subject: "Tu código de verificación",
-    text: `Tu código de acceso es: ${code}. Caduca en 10 minutos.`,
-    html: `
+    "Tu código de verificación",
+    `Tu código de acceso es: ${code}. Caduca en 10 minutos.`,
+    `
       <div style="font-family: sans-serif; padding: 16px;">
         <h2>Código de verificación</h2>
         <p>Usa este código para completar tu inicio de sesión:</p>
         <p style="font-size: 32px; font-weight: bold; letter-spacing: 6px;">${code}</p>
         <p style="color:#666;">Caduca en 10 minutos. Si no has sido tú, ignora este correo.</p>
       </div>
-    `,
-  });
+    `
+  );
 }
 
 export async function sendReservationResultEmail(
@@ -59,10 +78,5 @@ export async function sendReservationResultEmail(
       : `Tu reserva en la Pista ${details.courtId} el ${fecha} a las ${details.timeSlot} se ha confirmado.`
     : `No se ha podido reservar ninguna pista disponible el ${fecha} a las ${details.timeSlot}.\n\n${intentos ?? ""}`;
 
-  await transporter.sendMail({
-    from: env.smtp.from,
-    to,
-    subject,
-    text,
-  });
+  await sendEmail(to, subject, text);
 }

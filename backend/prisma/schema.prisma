@@ -15,12 +15,27 @@ enum ReservationStatus {
   CANCELLED   // el usuario la canceló antes de que se ejecutara
 }
 
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
   passwordHash String
   createdAt    DateTime @default(now())
+
+  role       UserRole   @default(USER)
+  status     UserStatus @default(PENDING)
+  approvedAt DateTime?
 
   // Credenciales del usuario en la web del club (PrinciSport), necesarias
   // para que el robot de reserva inicie sesión en su nombre. La contraseña

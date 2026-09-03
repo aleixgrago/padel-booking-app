@@ -22,8 +22,8 @@ export default function Verify2FA() {
     setError(null);
     setLoading(true);
     try {
-      const { accessToken, user } = await api.verify2fa({ tempToken, code });
-      login(user, accessToken);
+      const { user } = await api.verify2fa({ tempToken, code });
+      login(user);
       sessionStorage.removeItem("tempToken");
       sessionStorage.removeItem("pendingEmail");
       navigate("/");

@@ -11,18 +11,15 @@ function required(name: string, fallback?: string): string {
 export const env = {
   port: Number(process.env.PORT ?? 4000),
   frontendUrl: required("FRONTEND_URL", "http://localhost:5173"),
+  isProduction: process.env.NODE_ENV === "production",
 
   jwtSecret: required("JWT_SECRET"),
   jwtExpiresIn: Number(process.env.JWT_EXPIRES_IN ?? 60 * 60 * 24 * 7), // segons, por defecto 7 días
   tempTokenSecret: required("TEMP_TOKEN_SECRET"),
 
-  smtp: {
-    host: required("SMTP_HOST"),
-    port: Number(process.env.SMTP_PORT ?? 587),
-    secure: process.env.SMTP_SECURE === "true",
-    user: required("SMTP_USER"),
-    pass: required("SMTP_PASS"),
-    from: process.env.MAIL_FROM ?? "Padel Booking <no-reply@tuclub.com>",
+  resend: {
+    apiKey: required("RESEND_API_KEY"),
+    from: process.env.MAIL_FROM ?? "Padel Booking <onboarding@resend.dev>",
   },
 
   club: {

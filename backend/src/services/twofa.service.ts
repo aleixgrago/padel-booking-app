@@ -13,7 +13,14 @@ export async function issueTwoFactorCode(userId: string, email: string) {
     data: { userId, code, expiresAt },
   });
 
-  await sendTwoFactorEmail(email, code);
+  try {
+    await sendTwoFactorEmail(email, code);
+  } catch (err) {
+    console.error("[twofa] Error enviando el email del código:", err);
+    throw new Error(
+      "No se ha podido enviar el email con el código de verificación. Inténtalo de nuevo en unos minutos."
+    );
+  }
 }
 
 export async function verifyTwoFactorCode(userId: string, code: string): Promise<boolean> {

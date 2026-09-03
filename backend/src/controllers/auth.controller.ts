@@ -6,6 +6,7 @@ import { prisma } from "../db/prisma";
 import { env } from "../config/env";
 import { issueTwoFactorCode, verifyTwoFactorCode } from "../services/twofa.service";
 import { encryptSecret } from "../services/encryption.service";
+import { setAccessTokenCookie, clearAccessTokenCookie } from "../services/auth-cookie";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -42,11 +43,30 @@ export async function register(req: Request, res: Response) {
   const passwordHash = await bcrypt.hash(password, 10);
   const clubPasswordEncrypted = encryptSecret(clubPassword);
 
+  // El primer usuario que se registra en una instalación nueva (todavía no
+  // hay nadie en la tabla) se convierte automáticamente en administrador y
+  // queda aprobado, para no quedarse fuera de su propia app. Todos los
+  // siguientes quedan pendientes de aprobación por defecto.
+  const isFirstUser = (await prisma.user.count()) === 0;
+
   const user = await prisma.user.create({
-    data: { email, name, passwordHash, clubUsername, clubPasswordEncrypted },
+    data: {
+      email,
+      name,
+      passwordHash,
+      clubUsername,
+      clubPasswordEncrypted,
+      ...(isFirstUser ? { role: "ADMIN", status: "APPROVED", approvedAt: new Date() } : {}),
+    },
   });
 
-  return res.status(201).json({ id: user.id, email: user.email, name: user.name });
+  return res.status(201).json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    status: user.status,
+    isFirstUser,
+  });
 }
 
 export async function login(req: Request, res: Response) {
@@ -66,8 +86,22 @@ export async function login(req: Request, res: Response) {
     return res.status(401).json({ error: "Credenciales incorrectas" });
   }
 
+  if (user.status === "PENDING") {
+    return res
+      .status(403)
+      .json({ error: "Tu cuenta todavía no ha sido aprobada por el administrador." });
+  }
+  if (user.status === "REJECTED") {
+    return res.status(403).json({ error: "Tu solicitud de acceso ha sido rechazada." });
+  }
+
   // Paso 1 superado: enviamos el código 2FA y devolvemos un token temporal
-  await issueTwoFactorCode(user.id, user.email);
+  try {
+    await issueTwoFactorCode(user.id, user.email);
+  } catch (err) {
+    console.error("[auth] Error en el login al emitir el código 2FA:", err);
+    return res.status(502).json({ error: (err as Error).message });
+  }
 
   const tempToken = jwt.sign({ userId: user.id, step: "2fa" }, env.tempTokenSecret, {
     expiresIn: "10m",
@@ -99,12 +133,20 @@ export async function verifyTwoFactor(req: Request, res: Response) {
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
-  const accessToken = jwt.sign({ userId }, env.jwtSecret, {
+  const accessToken = jwt.sign({ userId, role: user.role }, env.jwtSecret, {
     expiresIn: env.jwtExpiresIn,
   });
 
+  // El token va en una cookie httpOnly: JavaScript no puede leerlo (ni un
+  // script inyectado por XSS, ni una extensión curiosa del navegador).
+  setAccessTokenCookie(res, accessToken, env.jwtExpiresIn * 1000);
+
   return res.json({
-    accessToken,
-    user: { id: user.id, email: user.email, name: user.name },
+    user: { id: user.id, email: user.email, name: user.name, role: user.role },
   });
+}
+
+export async function logout(_req: Request, res: Response) {
+  clearAccessTokenCookie(res);
+  return res.json({ ok: true });
 }

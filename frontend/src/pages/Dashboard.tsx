@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import ScheduleReservation from "./ScheduleReservation";
 import MyReservations from "./MyReservations";
+import AdminUsers from "./AdminUsers";
 
-type Tab = "schedule" | "history";
+type Tab = "schedule" | "history" | "admin";
 
 export default function Dashboard() {
   const [tab, setTab] = useState<Tab>("schedule");
@@ -30,9 +31,18 @@ export default function Dashboard() {
         <button className={`tab ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>
           Mis reservas
         </button>
+        {user?.role === "ADMIN" && (
+          <button className={`tab ${tab === "admin" ? "active" : ""}`} onClick={() => setTab("admin")}>
+            Administración
+          </button>
+        )}
       </div>
 
-      <div className="content">{tab === "schedule" ? <ScheduleReservation /> : <MyReservations />}</div>
+      <div className="content">
+        {tab === "schedule" && <ScheduleReservation />}
+        {tab === "history" && <MyReservations />}
+        {tab === "admin" && user?.role === "ADMIN" && <AdminUsers />}
+      </div>
     </div>
   );
 }

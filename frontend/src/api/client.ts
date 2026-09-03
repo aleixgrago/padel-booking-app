@@ -1,13 +1,14 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 async function request(path: string, options: RequestInit = {}) {
-  const token = localStorage.getItem("accessToken");
-
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
+    // Necesario para que el navegador envíe/reciba la cookie httpOnly de
+    // sesión, ya que en producción frontend y backend viven en dominios
+    // distintos (Vercel / Render).
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });
@@ -36,6 +37,8 @@ export const api = {
   verify2fa: (body: { tempToken: string; code: string }) =>
     request("/auth/verify-2fa", { method: "POST", body: JSON.stringify(body) }),
 
+  logout: () => request("/auth/logout", { method: "POST" }),
+
   getCourts: () => request("/courts"),
 
   createReservation: (body: { courtId: number; targetDate: string; timeSlot: string }) =>
@@ -46,4 +49,9 @@ export const api = {
   cancelReservation: (id: string) => request(`/reservations/${id}`, { method: "DELETE" }),
 
   runNow: () => request("/reservations/run-now", { method: "POST" }),
+
+  // Administración
+  listUsers: (status?: string) => request(`/admin/users${status ? `?status=${status}` : ""}`),
+  approveUser: (id: string) => request(`/admin/users/${id}/approve`, { method: "POST" }),
+  rejectUser: (id: string) => request(`/admin/users/${id}/reject`, { method: "POST" }),
 };

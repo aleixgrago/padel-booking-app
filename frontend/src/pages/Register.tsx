@@ -12,6 +12,7 @@ export default function Register() {
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
   function update<K extends keyof typeof form>(key: K, value: string) {
@@ -23,8 +24,15 @@ export default function Register() {
     setError(null);
     setLoading(true);
     try {
-      await api.register(form);
-      navigate("/login");
+      const result = await api.register(form);
+      if (result.isFirstUser) {
+        // Es el primer usuario: ya es administrador y está aprobado, puede entrar ya.
+        navigate("/login");
+      } else {
+        setSuccessMessage(
+          "Cuenta creada. Un administrador tiene que aprobarla antes de que puedas iniciar sesión."
+        );
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -42,6 +50,14 @@ export default function Register() {
         <p>Necesitamos también tu acceso a PrinciSport para poder reservar en tu nombre.</p>
 
         {error && <div className="error-banner">{error}</div>}
+        {successMessage && (
+          <div
+            className="error-banner"
+            style={{ borderColor: "var(--court-green)", background: "rgba(76,140,107,0.12)", color: "var(--court-green-bright)" }}
+          >
+            {successMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="field">
