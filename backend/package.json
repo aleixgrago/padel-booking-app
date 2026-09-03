@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "prebuild": "node -e \"const fs=require('fs'); console.log('--- DIAGNOSTICO ---'); console.log('TypeScript instalado:', require('typescript/package.json').version); console.log('@types/node presente:', fs.existsSync('node_modules/@types/node')); console.log('@types/express presente:', fs.existsSync('node_modules/@types/express')); console.log('-------------------');\"",
     "build": "tsc",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
