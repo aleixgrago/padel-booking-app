@@ -339,6 +339,10 @@ export async function reserveCourt(params: {
    * haciendo login justo en el momento crítico de las 20:00h. */
   existingSession?: CookieJar;
   log?: Logger;
+  /** Se comprueba justo antes de confirmar de verdad: si devuelve true,
+   * significa que otra pista en paralelo ya ha ganado la carrera, así que
+   * esta se cancela aquí para no acabar reservando dos pistas a la vez. */
+  abortIfAlreadyWon?: () => boolean;
 }): Promise<PrinciSportBookingResult> {
   const log = params.log ?? noop;
 
@@ -355,6 +359,11 @@ export async function reserveCourt(params: {
       params.courtOptionValue,
       log
     );
+
+    if (params.abortIfAlreadyWon?.()) {
+      log("Otra pista en paralelo ya ha ganado la reserva; se cancela esta para no duplicar.");
+      return { success: false, error: "Cancelado: otra pista ya se ha reservado primero." };
+    }
 
     const clubBookingId = await confirmReservation(jar, confirmationUrl, params.clubUsername, log);
 
