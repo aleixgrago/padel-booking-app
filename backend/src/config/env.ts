@@ -11,7 +11,7 @@ function required(name: string, fallback?: string): string {
 export const env = {
   port: Number(process.env.PORT ?? 4000),
   frontendUrl: required("FRONTEND_URL", "http://localhost:5173"),
-  isProduction: process.env.NODE_ENV === "production",
+  isProduction: process.env.IS_PRODUCTION === "true",
 
   jwtSecret: required("JWT_SECRET"),
   jwtExpiresIn: Number(process.env.JWT_EXPIRES_IN ?? 60 * 60 * 24 * 7), // segons, por defecto 7 días

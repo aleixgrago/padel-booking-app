@@ -91,7 +91,6 @@ mano desde la pestaña "Actions" del repositorio ("Run workflow").
 2. Genera una "contraseña de aplicación" (Google Account → Seguridad →
    Contraseñas de aplicaciones).
 3. Usa esa contraseña como `SMTP_PASS`, y tu email como `SMTP_USER`.
-4. Gmail PWD: qdss luuc mmbx hqsj
 
 ### 2.4 Frontend (Vercel)
 

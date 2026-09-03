@@ -44,6 +44,9 @@ export const api = {
   createReservation: (body: { courtId: number; targetDate: string; timeSlot: string }) =>
     request("/reservations", { method: "POST", body: JSON.stringify(body) }),
 
+  bookNow: (body: { courtId: number; targetDate: string; timeSlot: string }) =>
+    request("/reservations/book-now", { method: "POST", body: JSON.stringify(body) }),
+
   listReservations: () => request("/reservations"),
 
   cancelReservation: (id: string) => request(`/reservations/${id}`, { method: "DELETE" }),

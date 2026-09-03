@@ -3,6 +3,8 @@ import { prisma } from "../db/prisma";
 import { env } from "../config/env";
 import { bookCourt } from "../services/booking-api.client";
 import { sendReservationResultEmail } from "../services/email.service";
+import { prewarmSession } from "../services/session-cache";
+import { decryptSecret } from "../services/encryption.service";
 
 /**
  * Busca todas las reservas SCHEDULED cuya ventana de ejecución (executeAt)
@@ -44,6 +46,7 @@ export async function runDueReservations() {
         clubBookingId: result.clubBookingId,
         bookedCourtId: result.bookedCourtId,
         lastError: result.error,
+        executionLog: result.log as any,
         executedAt: new Date(),
       },
     });
@@ -71,5 +74,38 @@ export function startScheduler() {
     });
   });
 
-  console.log(`[scheduler] Job registrado con expresión cron "${env.scheduler.cron}"`);
+  // Unos minutos antes, "pre-calentamos" la sesión de PrinciSport de cada
+  // usuario que tenga una reserva para hoy a las 20:00h, para no perder
+  // tiempo haciendo login justo en el momento crítico.
+  cron.schedule("58 19 * * *", () => {
+    prewarmTonightsSessions().catch((err) => {
+      console.error("[scheduler] Error precalentando sesiones:", err);
+    });
+  });
+
+  console.log(`[scheduler] Job registrado con expresión cron "${env.scheduler.cron}" (+ pre-login a las 19:58)`);
+}
+
+/**
+ * Busca las reservas que se van a ejecutar dentro de los próximos minutos
+ * y deja lista la sesión de PrinciSport de cada usuario afectado, para que
+ * el job de las 20:00h no tenga que hacer login desde cero.
+ */
+async function prewarmTonightsSessions() {
+  const now = new Date();
+  const in5min = new Date(now.getTime() + 5 * 60 * 1000);
+
+  const upcoming = await prisma.reservation.findMany({
+    where: { status: "SCHEDULED", executeAt: { gte: now, lte: in5min } },
+    include: { user: true },
+    distinct: ["userId"],
+  });
+
+  if (upcoming.length === 0) return;
+
+  console.log(`[scheduler] Pre-calentando sesión para ${upcoming.length} usuario(s)...`);
+
+  await Promise.all(
+    upcoming.map((r) => prewarmSession(r.userId, r.user.clubUsername, decryptSecret(r.user.clubPasswordEncrypted)))
+  );
 }

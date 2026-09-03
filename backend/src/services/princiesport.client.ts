@@ -14,6 +14,10 @@ export interface PrinciSportBookingResult {
   error?: string;
 }
 
+/** Función para ir registrando qué se hace y cuándo, para poder mostrarlo luego. */
+export type Logger = (message: string) => void;
+const noop: Logger = () => {};
+
 // ---------------------------------------------------------------------------
 // Utilidades de parseo de HTML (Drupal 7 con formularios estándar)
 // ---------------------------------------------------------------------------
@@ -62,8 +66,22 @@ function isCheckboxChecked(html: string, fieldName: string): boolean {
  *    "user_login_block", con solo form_build_id (sin form_token).
  *  - Se envía por POST a "/node?destination=node".
  *  - Devuelve 302; la sesión queda en la cookie que absorbe el CookieJar.
+ *
+ * Exportado aparte para poder "pre-calentar" la sesión unos segundos antes
+ * de las 20:00h y no perder ese tiempo justo en el momento crítico.
  */
-async function login(jar: CookieJar, clubUsername: string, clubPassword: string): Promise<void> {
+export async function loginToPrinciSport(
+  clubUsername: string,
+  clubPassword: string,
+  log: Logger = noop
+): Promise<CookieJar> {
+  const jar = new CookieJar();
+  await login(jar, clubUsername, clubPassword, log);
+  return jar;
+}
+
+async function login(jar: CookieJar, clubUsername: string, clubPassword: string, log: Logger = noop): Promise<void> {
+  log("Login: cargando la portada de PrinciSport...");
   const homeRes = await fetch(`${BASE_URL}/`, { headers: COMMON_HEADERS });
   jar.absorb(homeRes);
   const homeHtml = await homeRes.text();
@@ -91,6 +109,7 @@ async function login(jar: CookieJar, clubUsername: string, clubPassword: string)
     op: "Entra",
   });
 
+  log("Login: enviando usuario y contraseña...");
   const loginRes = await fetch(`${BASE_URL}/node?destination=node`, {
     method: "POST",
     headers: {
@@ -112,6 +131,7 @@ async function login(jar: CookieJar, clubUsername: string, clubPassword: string)
       "El login en PrinciSport no ha redirigido como se esperaba: revisa el código de usuario y la contraseña."
     );
   }
+  log("Login: sesión iniciada correctamente.");
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +188,8 @@ async function submitSlotSelection(
   dateYYYYMMDD: string,
   gridHtml: string,
   targetHourHHmm: string,
-  courtOptionValue: string
+  courtOptionValue: string,
+  log: Logger = noop
 ): Promise<string> {
   const rows = parseGridRows(gridHtml, sportCode, dateYYYYMMDD);
   const hourNoColon = targetHourHHmm.replace(":", "");
@@ -194,6 +215,7 @@ async function submitSlotSelection(
   body.set("form_token", token);
   body.set("form_id", "gpa_piw_pistas_block_sport_form");
 
+  log(`Enviando selección de pista (opción ${courtOptionValue}) a las ${targetHourHHmm}...`);
   const res = await fetch(`${BASE_URL}/ajax/infopistas/${sportCode}/${dateYYYYMMDD}?language=ca`, {
     method: "POST",
     headers: {
@@ -214,6 +236,7 @@ async function submitSlotSelection(
       "PrinciSport no ha aceptado la selección de la franja horaria (puede que ya esté ocupada)."
     );
   }
+  log("Selección aceptada, pasando a la página de confirmación...");
 
   return location; // ej: https://princiesport.miclubonline.net/infopistas/02/20260826/15/2015
 }
@@ -231,7 +254,8 @@ async function submitSlotSelection(
 async function confirmReservation(
   jar: CookieJar,
   confirmationUrl: string,
-  clubUsername: string
+  clubUsername: string,
+  log: Logger = noop
 ): Promise<string> {
   const pageRes = await fetch(confirmationUrl, {
     headers: { ...COMMON_HEADERS, Cookie: jar.header() },
@@ -296,6 +320,7 @@ async function confirmReservation(
     );
   }
 
+  log(`Reserva confirmada por PrinciSport (id ${okMatch[1]}).`);
   return okMatch[1]; // el id de la reserva, ej. "75447"
 }
 
@@ -310,12 +335,15 @@ export async function reserveCourt(params: {
   courtOptionValue: string;
   dateYYYYMMDD: string;
   timeSlotHHmm: string;
+  /** Sesión ya iniciada de antemano (pre-login), para no perder tiempo
+   * haciendo login justo en el momento crítico de las 20:00h. */
+  existingSession?: CookieJar;
+  log?: Logger;
 }): Promise<PrinciSportBookingResult> {
-  const jar = new CookieJar();
+  const log = params.log ?? noop;
 
-  try {
-    await login(jar, params.clubUsername, params.clubPassword);
-
+  async function attempt(jar: CookieJar): Promise<PrinciSportBookingResult> {
+    log("Consultando disponibilidad de la franja...");
     const gridHtml = await fetchCourtGrid(jar, params.sportCode, params.dateYYYYMMDD);
 
     const confirmationUrl = await submitSlotSelection(
@@ -324,13 +352,31 @@ export async function reserveCourt(params: {
       params.dateYYYYMMDD,
       gridHtml,
       params.timeSlotHHmm,
-      params.courtOptionValue
+      params.courtOptionValue,
+      log
     );
 
-    const clubBookingId = await confirmReservation(jar, confirmationUrl, params.clubUsername);
+    const clubBookingId = await confirmReservation(jar, confirmationUrl, params.clubUsername, log);
 
     return { success: true, clubBookingId };
+  }
+
+  try {
+    if (params.existingSession) {
+      log("Reutilizando sesión pre-iniciada (sin necesidad de login).");
+      try {
+        return await attempt(params.existingSession);
+      } catch (err) {
+        // La sesión pre-calentada puede haber caducado (login previo hace
+        // demasiado rato); repetimos con una sesión nueva antes de rendirnos.
+        log(`Sesión pre-iniciada no válida (${(err as Error).message}), reintentando con login nuevo...`);
+      }
+    }
+
+    const jar = await loginToPrinciSport(params.clubUsername, params.clubPassword, log);
+    return await attempt(jar);
   } catch (err) {
+    log(`Error: ${(err as Error).message}`);
     return { success: false, error: (err as Error).message };
   }
 }

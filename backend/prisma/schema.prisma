@@ -88,6 +88,11 @@ model Reservation {
   lastError     String?
   clubBookingId String? // id devuelto por la API del club si tiene éxito
 
+  // Historial detallado de cada acción (login, cada intento por pista...)
+  // para poder mostrarlo en la pantalla de resultado. Formato: array de
+  // { at: string (ISO), message: string }.
+  executionLog Json?
+
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   executedAt DateTime?

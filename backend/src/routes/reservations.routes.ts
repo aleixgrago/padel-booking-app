@@ -5,6 +5,7 @@ import {
   listReservations,
   cancelReservation,
   runNow,
+  bookNow,
 } from "../controllers/reservations.controller";
 
 export const reservationsRouter = Router();
@@ -15,3 +16,4 @@ reservationsRouter.post("/", createReservation);
 reservationsRouter.get("/", listReservations);
 reservationsRouter.delete("/:id", cancelReservation);
 reservationsRouter.post("/run-now", runNow); // útil en desarrollo para probar sin esperar al cron
+reservationsRouter.post("/book-now", bookNow); // reserva inmediata cuando la ventana ya está abierta
